@@ -1,0 +1,55 @@
+{
+  "name": "ChallengeCompletion",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "challenge_id": {
+      "type": "string",
+      "description": "ID of the challenge template"
+    },
+    "body_part": {
+      "type": "string",
+      "enum": [
+        "arms",
+        "legs",
+        "core",
+        "full_body",
+        "cardio",
+        "flexibility"
+      ]
+    },
+    "xp_earned": {
+      "type": "number"
+    },
+    "coins_earned": {
+      "type": "number"
+    },
+    "completion_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "user_email",
+    "challenge_id"
+  ],
+  "rls": {
+    "create": {
+      "created_by": "{{user.email}}"
+    },
+    "read": {
+      "created_by": "{{user.email}}"
+    },
+    "update": {
+      "created_by": "{{user.email}}"
+    },
+    "delete": {
+      "created_by": "{{user.email}}"
+    },
+    "write": {
+      "created_by": "{{user.email}}"
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "name": "PlayerProfile",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "avatar_emoji": {
+      "type": "string",
+      "default": "\ud83d\ude0a"
+    },
+    "banner_id": {
+      "type": "string",
+      "default": "banner_default",
+      "description": "Selected profile banner ID"
+    },
+    "equipped_title_id": {
+      "type": "string",
+      "default": "",
+      "description": "ID of the currently equipped title"
+    },
+    "school_id": {
+      "type": "string"
+    },
+    "class_id": {
+      "type": "string"
+    },
+    "total_xp": {
+      "type": "number",
+      "default": 0
+    },
+    "coins": {
+      "type": "number",
+      "default": 0
+    },
+    "current_streak": {
+      "type": "number",
+      "default": 0
+    },
+    "longest_streak": {
+      "type": "number",
+      "default": 0
+    },
+    "last_challenge_date": {
+      "type": "string",
+      "description": "ISO date of last completed challenge"
+    },
+    "level": {
+      "type": "number",
+      "default": 1
+    }
+  },
+  "required": [
+    "user_email",
+    "display_name"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "developer"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "developer"
+          }
+        }
+      ]
+    }
+  }
+}

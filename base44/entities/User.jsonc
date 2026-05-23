@@ -1,0 +1,19 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "student",
+        "teacher",
+        "school_administrator",
+        "developer",
+        "admin"
+      ],
+      "default": "student",
+      "description": "Role in the app. admin = platform admin, developer = full access, school_administrator = manage schools/classes, teacher = manage classes only, student = read only"
+    }
+  },
+  "required": []
+}
