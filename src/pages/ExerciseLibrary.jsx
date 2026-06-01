@@ -177,7 +177,7 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <h3 className="font-extrabold text-foreground text-base leading-tight">{challenge.name}</h3>
             
-            {/* --- NEW EXERCISE LIBRARY DIFFICULTY TAG BADGE ELEMENT --- */}
+            {/* --- EXERCISE LIBRARY DIFFICULTY TAG BADGE ELEMENT --- */}
             <span className={`text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md border ${difficultyStyles[rewards.difficultyLabel]}`}>
               {rewards.difficultyLabel}
             </span>
@@ -396,8 +396,11 @@ export default function ExerciseLibrary() {
           <p className="text-sm text-muted-foreground mt-1">Open an adventure card to complete your timed fitness challenges and get epic loot!</p>
         </div>
 
-        {/* Filter Navigation Category Menu Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {/* UNIFIED FILTER CONTAINER:
+          Added Tailwind inline utilities to guarantee that the horizontal browser scrollbar 
+          is completely hidden across Chrome, Safari, Firefox, and Edge while preserving touch swipe maps.
+        */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             onClick={() => setSelectedPart("all")}
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${

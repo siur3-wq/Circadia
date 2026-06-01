@@ -5,7 +5,9 @@ import { Lock } from "lucide-react";
 
 export default function BannerPicker({ totalXP, selectedBannerId, ownedBanners = [], onSelect }) {
   const unlockedXP = new Set(getUnlockedBanners(totalXP).map(b => b.id));
-  const ownedShop = new Set(ownedBanners);
+  const ownedShop = new Set(ownedBanners.map(id => String(id)));
+
+  const ownedShopItems = SHOP_BANNERS.filter(b => ownedShop.has(String(b.id)));
 
   return (
     <div className="space-y-4">
@@ -41,12 +43,12 @@ export default function BannerPicker({ totalXP, selectedBannerId, ownedBanners =
         </div>
       </div>
 
-      {/* Shop Banners (only if any owned) */}
-      {ownedBanners.length > 0 && (
+      {/* Shop Banners */}
+      {ownedShopItems.length > 0 && (
         <div>
           <p className="text-xs font-black text-muted-foreground uppercase tracking-wide mb-2">🛒 Shop Banners</p>
           <div className="grid grid-cols-3 gap-2">
-            {SHOP_BANNERS.filter(b => ownedShop.has(b.id)).map(banner => {
+            {ownedShopItems.map(banner => {
               const isSelected = selectedBannerId === banner.id;
               return (
                 <button

@@ -1,10 +1,6 @@
 import React from "react";
 import { getBannerById } from "./BannerUtils";
 
-/**
- * Displays a player's selected banner as a decorative strip.
- * size: "sm" (leaderboard row) | "md" (profile header)
- */
 export default function ProfileBanner({ bannerId, size = "md" }) {
   const banner = getBannerById(bannerId);
 
@@ -16,7 +12,6 @@ export default function ProfileBanner({ bannerId, size = "md" }) {
     );
   }
 
-  // md – full-width strip shown on profile page
   return (
     <div className={`w-full rounded-2xl bg-gradient-to-r ${banner.gradient} px-4 py-3 flex items-center gap-3 shadow-lg`}>
       <span className="text-3xl">{banner.emoji}</span>

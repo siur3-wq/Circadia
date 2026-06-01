@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { PlayerProfile, ChallengeCompletion } from "@/lib/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +11,7 @@ import StatCard from "../components/game/StatCard";
 import StreakDisplay from "../components/game/StreakDisplay";
 import FunFact from "../components/game/FunFact";
 import AchievementToast from "../components/game/AchievementToast";
+import FloatingTextEffect from "../components/game/FloatingTextEffect";
 import { getNewlyEarned } from "../components/game/AchievementData";
 import { getBannerById } from "../components/game/BannerUtils";
 import BannerPattern from "../components/game/BannerPattern";
@@ -30,11 +31,11 @@ export default function Home() {
   const [maxTimerDuration, setMaxTimerDuration] = useState(60); 
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  const rawProfileId = getSelectedProfileId();
-  const profileId = rawProfileId ? Number(rawProfileId) : null;
+  // Read the active profile string from storage
+  const profileId = getSelectedProfileId();
 
-  // Fetch player profile row
-  const { data: profile } = useQuery({
+  // 1. Fetch player profile row
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
     queryKey: ["myProfile", profileId],
     queryFn: async () => {
       if (!profileId) return null;
@@ -44,81 +45,32 @@ export default function Home() {
     enabled: !!profileId,
   });
 
-  const rawDailyChallenges = getDailyChallenges(today, profile?.id) || [];
+  // Safe fallback deterministic string for generating daily seeds
+  const seedString = useMemo(() => {
+    if (!profile) return "fallback_seed";
+    return String(profile.user_email || profile.display_name || profile.id);
+  }, [profile]);
 
-  // --- LOGICAL DURATION ENGINE (MINIMUM 60s BASELINE) ---
-  const dailyChallenges = rawDailyChallenges.map(challenge => {
-    const name = (challenge.text || challenge.name || "").toLowerCase();
-    
-    const isHard = name.includes("squat") || name.includes("pushup") || name.includes("push-up") || 
-                   name.includes("plank") || name.includes("lunge");
-    const isMedium = name.includes("crunch") || name.includes("bridge") || name.includes("twist");
-
-    let difficultyLabel = "Easy";
-    let targetDuration = 60; // Baseline floor minimum configuration
-    let computedXp = challenge.xp || 15;
-    let computedCoins = challenge.coins || 5;
-
-    // 1. Assign Rewards pure structural difficulty mapping
-    if (isHard) {
-      difficultyLabel = "Hard";
-      computedXp = challenge.xp || 40;
-      computedCoins = challenge.coins || 15;
-    } else if (isMedium) {
-      difficultyLabel = "Medium";
-      computedXp = challenge.xp || 25;
-      computedCoins = challenge.coins || 10;
-    }
-
-    // 2. Adjust durations relative to fitness pacing (Floor clamped strictly at 60s)
-    if (name.includes("squat") || name.includes("lunge")) {
-      targetDuration = 90; // High tier pacing for structural lower body multi-groups
-    } else if (name.includes("plank") || name.includes("pushup") || name.includes("push-up")) {
-      targetDuration = 75; // Isometric strain limits above baseline
-    } else if (isMedium) {
-      targetDuration = 75; // Core movement targeted duration pacing
-    } else {
-      targetDuration = 60; // Clamped exact baseline for sprint bursts and light mobility
-    }
-
-    let cleanText = challenge.text || challenge.name || "";
-    cleanText = cleanText.replace(/\d+\s*(times|reps|seconds|sec|s|counts|x)\b/gi, "").replace(/\s+/g, " ").trim();
-    
-    const displayMinutes = Math.floor(targetDuration / 60);
-    const displaySeconds = targetDuration % 60;
-    const timeLabel = displaySeconds > 0 && displayMinutes > 0 
-      ? `${displayMinutes}m ${displaySeconds}s` 
-      : displayMinutes > 0 ? `${displayMinutes} minute` : `${displaySeconds} seconds`;
-
-    return {
-      ...challenge,
-      text: `${cleanText} until the timer runs out!`,
-      xp: computedXp,
-      coins: computedCoins,
-      difficulty: difficultyLabel,
-      duration: targetDuration, 
-      targetNum: targetDuration,
-      computedSeconds: targetDuration,
-      timeLabel: timeLabel
-    };
-  });
-
-  // Fetch today's completions
+  // 2. Fetch today's database challenge completions
   const { data: todayCompletions } = useQuery({
-    queryKey: ["todayCompletions", today, profile?.user_email],
+    queryKey: ["todayCompletions", today, seedString],
     queryFn: async () => {
       if (!profile?.user_email) return [];
-      return ChallengeCompletion.filter({
+      const results = await ChallengeCompletion.filter({
         user_email: profile.user_email,
         completion_date: today,
       });
+      return Array.isArray(results) ? results : [];
     },
     enabled: !!profile?.user_email,
   });
 
-  const completedIds = new Set((todayCompletions || []).map(c => c.challenge_id));
+  // Calculate completed IDs Set safely
+  const completedIds = useMemo(() => {
+    return new Set((todayCompletions || []).map(c => String(c.challenge_id)));
+  }, [todayCompletions]);
 
-  // Central Countdown Timer Engine Loop
+  // 3. Central Countdown Timer Loop Effect
   useEffect(() => {
     let interval = null;
     if (isTimerRunning && timeLeft > 0) {
@@ -135,60 +87,100 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isTimerRunning, timeLeft, activeTimerChallenge]);
 
-  const handleChallengeInitiation = (challenge) => {
-    const totalSeconds = challenge.computedSeconds || 60;
-    setTimeLeft(totalSeconds);
-    setMaxTimerDuration(totalSeconds);
-    setActiveTimerChallenge(challenge);
-    setIsTimerRunning(true);
-  };
+  // 4. Generate Daily Challenges List
+  const rawDailyChallenges = useMemo(() => {
+    return getDailyChallenges(today, seedString) || [];
+  }, [today, seedString]);
 
-  // Complete Mutation Handler Payload Setup
+  const dailyChallenges = useMemo(() => {
+    return rawDailyChallenges.map(challenge => {
+      const name = (challenge.text || challenge.name || "").toLowerCase();
+      const isHard = name.includes("squat") || name.includes("pushup") || name.includes("push-up") || name.includes("plank") || name.includes("lunge");
+      const isMedium = name.includes("crunch") || name.includes("bridge") || name.includes("twist");
+
+      let difficultyLabel = "Easy";
+      let targetDuration = 60; 
+      let computedXp = challenge.xp || 15;
+      let computedCoins = challenge.coins || 5;
+
+      if (isHard) {
+        difficultyLabel = "Hard";
+        computedXp = challenge.xp || 40;
+        computedCoins = challenge.coins || 15;
+      } else if (isMedium) {
+        difficultyLabel = "Medium";
+        computedXp = challenge.xp || 25;
+        computedCoins = challenge.coins || 10;
+      }
+
+      if (name.includes("squat") || name.includes("lunge")) {
+        targetDuration = 90; 
+      } else if (name.includes("plank") || name.includes("pushup") || name.includes("push-up")) {
+        targetDuration = 75; 
+      } else if (isMedium) {
+        targetDuration = 75; 
+      } else {
+        targetDuration = 60; 
+      }
+
+      let cleanText = challenge.text || challenge.name || "";
+      cleanText = cleanText.replace(/\d+\s*(times|reps|seconds|sec|s|counts|x)\b/gi, "").replace(/\s+/g, " ").trim();
+      
+      const displayMinutes = Math.floor(targetDuration / 60);
+      const displaySeconds = targetDuration % 60;
+      const timeLabel = displaySeconds > 0 && displayMinutes > 0 
+        ? `${displayMinutes}m ${displaySeconds}s` 
+        : displayMinutes > 0 ? `${displayMinutes} minute` : `${displaySeconds} seconds`;
+
+      return {
+        ...challenge,
+        text: `${cleanText} until the timer runs out!`,
+        xp: Number(computedXp),
+        coins: Number(computedCoins),
+        difficulty: difficultyLabel,
+        duration: targetDuration, 
+        targetNum: targetDuration,
+        computedSeconds: targetDuration,
+        timeLabel: timeLabel
+      };
+    });
+  }, [rawDailyChallenges]);
+
+  // 5. Complete Challenge Mutation Engine
   const completeMutation = useMutation({
     mutationFn: async (challenge) => {
       if (!profile || !profile.user_email) return;
 
       const isNewDay = profile.last_challenge_date !== today;
       const wasYesterday = profile.last_challenge_date === moment().subtract(1, "day").format("YYYY-MM-DD");
-      let newStreak = profile.current_streak || 0;
+      
+      let newStreak = Number(profile.current_streak || 0);
       if (isNewDay) {
         newStreak = wasYesterday ? newStreak + 1 : 1;
       }
 
-      const multiplier = getStreakMultiplier(newStreak);
-      const bonusXP = Math.round(challenge.xp * multiplier);
+      const multiplier = getStreakMultiplier(newStreak) || 1;
+      const baseEarnedXP = Math.round(Number(challenge.xp || 15) * multiplier);
+      const baseEarnedCoins = Number(challenge.coins || 5);
 
       await ChallengeCompletion.create({
         user_email: profile.user_email,
-        challenge_id: challenge.id,
-        body_part: challenge.body_part,
-        xp_earned: Number(bonusXP),
-        coins_earned: Number(challenge.coins),
+        challenge_id: String(challenge.id),
+        body_part: String(challenge.body_part || "general"),
+        xp_earned: Number(baseEarnedXP),
+        coins_earned: Number(baseEarnedCoins),
         completion_date: today,
       });
 
-      let calculatedXP = Number(profile.total_xp || 0) + Number(bonusXP);
-      let calculatedCoins = Number(profile.coins || 0) + Number(challenge.coins);
-      const transientAchievements = Array.isArray(profile.unlocked_achievements) ? [...profile.unlocked_achievements] : [];
+      let runningXPAddition = baseEarnedXP;
+      let runningCoinsAddition = baseEarnedCoins;
 
-      const transientProfile = {
-        ...profile,
-        total_xp: calculatedXP,
-        coins: calculatedCoins,
-        current_streak: Number(newStreak),
-        longest_streak: Number(Math.max(newStreak, profile.longest_streak || 0)),
-        last_challenge_date: today,
-        level: getLevelFromXP(calculatedXP),
-        unlocked_achievements: transientAchievements,
-      };
+      const currentDoneCount = completedIds ? completedIds.size : 0;
+      const totalChallengesCount = dailyChallenges ? dailyChallenges.length : 0;
 
-      if (completedIds.size === dailyChallenges.length - 1) {
-        calculatedXP += 50;
-        calculatedCoins += 10;
-        transientProfile.total_xp = calculatedXP;
-        transientProfile.coins = calculatedCoins;
-        transientProfile.level = getLevelFromXP(calculatedXP);
-        
+      if (totalChallengesCount > 0 && currentDoneCount === totalChallengesCount - 1 && !completedIds.has(String(challenge.id))) {
+        runningXPAddition += 50;
+        runningCoinsAddition += 10;
         try {
           await ChallengeCompletion.create({
             user_email: profile.user_email,
@@ -198,25 +190,42 @@ export default function Home() {
             coins_earned: 10,
             completion_date: today,
           });
-        } catch (bErr) {}
+        } catch (err) {}
       }
 
+      const baseProfileXP = Number(profile.total_xp || 0);
+      const baseProfileCoins = Number(profile.coins || 0);
+      const transientAchievements = Array.isArray(profile.unlocked_achievements) ? [...profile.unlocked_achievements] : [];
+
+      const transientProfile = {
+        ...profile,
+        total_xp: baseProfileXP + runningXPAddition,
+        coins: baseProfileCoins + runningCoinsAddition,
+        current_streak: Number(newStreak),
+        longest_streak: Number(Math.max(newStreak, Number(profile.longest_streak || 0))),
+        last_challenge_date: today,
+        unlocked_achievements: transientAchievements,
+      };
+
       const earned = getNewlyEarned(transientProfile);
-      if (earned.length > 0) {
+      if (earned && earned.length > 0) {
         earned.forEach(a => {
           transientProfile.unlocked_achievements.push(a.id);
-          calculatedXP += a.bonusXP;
+          runningXPAddition += Number(a.bonusXP || 0);
         });
         setNewAchievements(earned);
       }
 
-      await PlayerProfile.update(Number(profile.id), {
-        total_xp: Number(calculatedXP),
-        coins: Number(calculatedCoins),
+      const finalTotalXP = baseProfileXP + runningXPAddition;
+      const finalTotalCoins = baseProfileCoins + runningCoinsAddition;
+
+      await PlayerProfile.update(profile.id, {
+        total_xp: Number(finalTotalXP),
+        coins: Number(finalTotalCoins),
         current_streak: Number(transientProfile.current_streak),
         longest_streak: Number(transientProfile.longest_streak),
-        last_challenge_date: transientProfile.last_challenge_date,
-        level: Number(getLevelFromXP(calculatedXP))
+        last_challenge_date: today,
+        level: Number(getLevelFromXP(finalTotalXP))
       });
     },
     onSuccess: () => {
@@ -225,26 +234,37 @@ export default function Home() {
     },
   });
 
-  if (!profileId || !profile) {
+  const handleChallengeInitiation = (challenge) => {
+    const totalSeconds = challenge.computedSeconds || 60;
+    setTimeLeft(totalSeconds);
+    setMaxTimerDuration(totalSeconds);
+    setActiveTimerChallenge(challenge);
+    setIsTimerRunning(true);
+  };
+
+  const allCompleted = dailyChallenges.length > 0 && dailyChallenges.every(c => completedIds.has(String(c.id)));
+  
+  const formatTime = (secs) => {
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${mins}:${remSecs < 10 ? "0" : ""}${remSecs}`;
+  };
+
+  if (!profileId || isProfileLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="text-center">
-          <div className="text-6xl mb-4">👋</div>
-          <h2 className="text-2xl font-black text-foreground mb-2">Pick your profile first!</h2>
-          <a href={`/SelectProfile`} className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground font-bold rounded-2xl">
-            Pick Profile 🚀
+          <div className="text-6xl mb-4">👤</div>
+          <h2 className="text-2xl font-black text-foreground mb-2">Loading profile settings...</h2>
+          <a href="/SelectProfile" className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground font-bold rounded-2xl mt-2">
+            Select Profile 👋
           </a>
         </div>
       </div>
     );
   }
 
-  const allCompleted = dailyChallenges.every(c => completedIds.has(c.id));
-  const formatTime = (secs) => {
-    const mins = Math.floor(secs / 60);
-    const remSecs = secs % 60;
-    return `${mins}:${remSecs < 10 ? "0" : ""}${remSecs}`;
-  };
+  const safeMaxDuration = maxTimerDuration && maxTimerDuration > 0 ? maxTimerDuration : 60;
 
   return (
     <div className="min-h-screen pb-24">
@@ -263,20 +283,30 @@ export default function Home() {
               <div className="relative z-10 shrink-0"><AvatarDisplay profile={profile} size="md" /></div>
               <div className="relative z-10 flex-1 min-w-0">
                 <h1 className="text-xl font-black text-white truncate">Hey, {profile.display_name}! 👋</h1>
-                <XPBar xp={profile.total_xp || 0} level={profile.level || 1} />
+                <XPBar xp={Number(profile.total_xp || 0)} level={Number(profile.level || 1)} />
               </div>
             </div>
           );
         })()}
 
-        {/* Dashboard Grid Stats Counters */}
+        {/* Dashboard Grid Stats Counters with Floating Text overlays */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCard icon="⚡" label="XP" value={profile.total_xp || 0} color="xp" />
-          <StatCard icon="🪙" label="Coins" value={profile.coins || 0} color="coin" />
-          <StatCard icon="🏆" label="Done" value={completedIds.size} color="accent" />
+          <div className="relative overflow-visible">
+            <StatCard icon="✨" label="XP" value={Number(profile.total_xp || 0)} color="xp" />
+            <FloatingTextEffect value={Number(profile.total_xp || 0)} icon="XP" colorClass="text-emerald-400 font-extrabold" />
+          </div>
+
+          <div className="relative overflow-visible">
+            <StatCard icon="🪙" label="Coins" value={Number(profile.coins || 0)} color="coin" />
+            <FloatingTextEffect value={Number(profile.coins || 0)} icon="🪙" colorClass="text-amber-400 font-extrabold" />
+          </div>
+
+          <div className="relative overflow-visible">
+            <StatCard icon="🏆" label="Done" value={completedIds.size} color="accent" />
+          </div>
         </div>
 
-        <StreakDisplay streak={profile.current_streak || 0} />
+        <StreakDisplay streak={Number(profile.current_streak || 0)} />
 
         {/* Layout Challenge Listing Block */}
         <div>
@@ -287,7 +317,13 @@ export default function Home() {
             </span>
           </div>
           
-          {allCompleted && (
+          {dailyChallenges.length === 0 && (
+            <div className="text-center py-8 bg-muted rounded-2xl border border-dashed">
+              <p className="text-sm text-muted-foreground font-bold">No challenges currently allocated for today.</p>
+            </div>
+          )}
+
+          {allCompleted && dailyChallenges.length > 0 && (
             <div className="text-center py-6 mb-4 bg-gradient-to-br from-accent/20 to-secondary/20 rounded-2xl border border-accent/30">
               <p className="font-black text-foreground">All Done Today! 🎉</p>
             </div>
@@ -298,7 +334,7 @@ export default function Home() {
               <ChallengeCard
                 key={`${challenge.id}-duration-${challenge.computedSeconds}`}
                 challenge={challenge}
-                completed={completedIds.has(challenge.id)}
+                completed={completedIds.has(String(challenge.id))}
                 onComplete={(c) => handleChallengeInitiation(c)}
               />
             ))}
@@ -329,7 +365,8 @@ export default function Home() {
                   <motion.circle
                     cx="50" cy="50" r="44" stroke="currentColor" strokeWidth="6" className="text-primary" fill="transparent"
                     strokeDasharray="276.46"
-                    animate={{ strokeDashoffset: 276.46 - (276.46 * timeLeft) / maxTimerDuration }}
+                    initial={{ strokeDashoffset: 0 }}
+                    animate={{ strokeDashoffset: Math.max(0, 276.46 - (276.46 * timeLeft) / safeMaxDuration) }}
                     transition={{ duration: 0.3, ease: "linear" }}
                   />
                 </svg>

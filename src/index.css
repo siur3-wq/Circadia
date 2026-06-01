@@ -46,6 +46,18 @@ body {
   }
 }
 
+/* Custom Tailwind Design Utility Implementations */
+@layer utilities {
+  /* Hides native browser scrollbars while keeping touch/gesture scroll tracking intact */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Safari, Chrome, Opera, and newer Edge versions */
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* Legacy IE and Edge desktop versions */
+    scrollbar-width: none;  /* Firefox production fallback */
+  }
+}
+
 /* Star field animation */
 @keyframes twinkle {
   0%, 100% { opacity: 0.2; transform: scale(1); }

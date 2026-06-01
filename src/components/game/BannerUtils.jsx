@@ -1,4 +1,3 @@
-// Unified banner lookup that covers both XP-unlocked and shop banners
 import { BANNERS } from "./BannerData";
 import { SHOP_BANNERS } from "./ShopData";
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlayerProfile } from "@/lib/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -29,8 +29,8 @@ function BannerCard({ item, owned, selected, onBuy, onEquip, coins }) {
       }`}
     >
       <div className={`relative h-24 bg-gradient-to-br ${item.gradient} flex items-center justify-center`}>
-        <BannerPattern pattern={item.pattern} opacity={0.15} />
-        <div className="absolute inset-0 bg-black/20" />
+        <BannerPattern pattern={item.pattern} opacity={0.25} />
+        <div className="absolute inset-0 bg-black/15" />
         <span className="relative z-10 text-3xl filter drop-shadow-md">{item.emoji}</span>
         {selected && (
           <div className="absolute top-2 right-2 bg-primary rounded-full p-1 shadow-md">
@@ -129,6 +129,11 @@ function TitleCard({ item, owned, equipped, onBuy, onEquip, coins }) {
 export default function Shop() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("banners");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const rawProfileId = getSelectedProfileId();
 
@@ -149,12 +154,11 @@ export default function Shop() {
       }
       return null;
     },
-    enabled: !!rawProfileId,
+    enabled: !!rawProfileId && mounted,
   });
 
   const coins = profile ? Number(profile.coins || 0) : 0;
 
-  // Safely normalizes text array lists returned from Supabase
   const safeGetOwnedSet = (fieldData) => {
     if (!fieldData) return new Set();
     if (Array.isArray(fieldData)) return new Set(fieldData.map(id => String(id)));
@@ -172,14 +176,13 @@ export default function Shop() {
   const equippedBanner = profile?.banner_id ? String(profile.banner_id) : "banner_default";
   const equippedTitle = profile?.equipped_title_id ? String(profile.equipped_title_id) : "";
 
-  // Always treats current selections as unlocked items
   if (equippedBanner && equippedBanner !== "banner_default") ownedBanners.add(equippedBanner);
   if (equippedTitle) ownedTitles.add(equippedTitle);
 
   const buyMutation = useMutation({
     mutationFn: async ({ type, item }) => {
-      if (!profile || !profile.id) throw new Error("No valid database hero record discovered!");
-      if (coins < item.price) throw new Error("You don't have enough gold coins!");
+      if (!profile || !profile.id) throw new Error("No valid profile loaded!");
+      if (coins < item.price) throw new Error("Not enough gold coins!");
 
       const cleanPayload = {
         coins: Number(coins - item.price)
@@ -205,7 +208,6 @@ export default function Shop() {
       toast.success(`Purchased "${finalName}"! 🎉`);
     },
     onError: (err) => {
-      console.error("Purchase error detail:", err);
       toast.error(err.message || "Shop purchase failed.");
     },
   });
@@ -230,7 +232,7 @@ export default function Shop() {
     }
   });
 
-  if (isLoading) {
+  if (!mounted || isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
         <div className="text-4xl animate-bounce">🛒</div>
@@ -246,7 +248,7 @@ export default function Shop() {
           <div className="text-5xl">🎒</div>
           <h2 className="font-black text-lg text-foreground tracking-tight">Active Profile Needed</h2>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            Please make sure you have generated or switched to an active adventurer profile before loading the inventory store ledger!
+            Please make sure you have generated or switched to an active profile before viewing the store!
           </p>
         </div>
       </div>
