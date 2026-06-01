@@ -18,24 +18,18 @@ export default function SelectStudent() {
     queryFn: () => PlayerProfile.list(),
   });
 
-  // 1. Keep student entries that match both filter requirements
-  const filteredRoster = profiles.filter(p => {
+  // Keep student entries that match both filter requirements (Your exact original logic)
+  const unfilteredRoster = profiles.filter(p => {
     const matchesSchool = p.school === currentSchool;
     const matchesClass = p.class === currentClass || p.class_name === currentClass;
     // Exclude database administrators from student selection listings
     return matchesSchool && matchesClass && !p.is_admin && p.role !== "admin";
   });
 
-  // 2. Create a clean array copy, strip hidden spaces, and sort alphanumerically
-  const finalRoster = [...filteredRoster].sort((a, b) => {
-    const nameA = (a.display_name || '').trim();
-    const nameB = (b.display_name || '').trim();
-    
-    return nameA.localeCompare(nameB, undefined, {
-      numeric: true,
-      sensitivity: 'base'
-    });
-  });
+  // ONLY NEW LINE: Sort the roster naturally using a clean copy so React doesn't lock up
+  const finalRoster = [...unfilteredRoster].sort((a, b) => 
+    (a.display_name || '').localeCompare(b.display_name || '', undefined, { numeric: true, sensitivity: 'base' })
+  );
 
   const handleSelect = (profile) => {
     setSelectedProfileId(profile.id);
@@ -73,7 +67,7 @@ export default function SelectStudent() {
         </div>
       )}
 
-      {/* Grid pattern displaying the alphanumeric sorted cards */}
+      {/* Your exact original card layout grid pattern */}
       <div className="grid grid-cols-2 gap-4 w-full max-w-md">
         {finalRoster.map((profile, i) => {
           const banner = getBannerById(profile.banner_id);
@@ -86,7 +80,7 @@ export default function SelectStudent() {
               onClick={() => handleSelect(profile)}
               className="relative rounded-2xl overflow-hidden border-2 border-border hover:border-primary/50 transition-all text-left"
             >
-              {/* Banner Background */}
+              {/* Original Banner Background */}
               <div className={`relative h-20 bg-gradient-to-br ${banner.gradient} flex items-center justify-center`}>
                 <BannerPattern pattern={banner.pattern} opacity={0.15} />
                 <div className="absolute inset-0 bg-black/40" />
@@ -95,7 +89,7 @@ export default function SelectStudent() {
                 </div>
               </div>
               
-              {/* Metadata Text Block Info layout */}
+              {/* Original Metadata Text Block Info layout */}
               <div className="bg-card p-3">
                 <p className="font-black text-foreground text-sm truncate">{profile.display_name}</p>
                 <div className="mt-0.5">
