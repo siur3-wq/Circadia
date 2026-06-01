@@ -18,7 +18,7 @@ export default function SelectStudent() {
     queryFn: () => PlayerProfile.list(),
   });
 
-  // 1. Filter out the matching entries exactly like before
+  // 1. Keep student entries that match both filter requirements
   const filteredRoster = profiles.filter(p => {
     const matchesSchool = p.school === currentSchool;
     const matchesClass = p.class === currentClass || p.class_name === currentClass;
@@ -26,9 +26,12 @@ export default function SelectStudent() {
     return matchesSchool && matchesClass && !p.is_admin && p.role !== "admin";
   });
 
-  // 2. Sort them alphanumerically (Student 1, Student 2... Student 10)
-  const finalRoster = filteredRoster.sort((a, b) => {
-    return (a.display_name || '').localeCompare((b.display_name || ''), undefined, {
+  // 2. Create a clean array copy, strip hidden spaces, and sort alphanumerically
+  const finalRoster = [...filteredRoster].sort((a, b) => {
+    const nameA = (a.display_name || '').trim();
+    const nameB = (b.display_name || '').trim();
+    
+    return nameA.localeCompare(nameB, undefined, {
       numeric: true,
       sensitivity: 'base'
     });
@@ -70,7 +73,7 @@ export default function SelectStudent() {
         </div>
       )}
 
-      {/* Your exact original card layout grid pattern */}
+      {/* Grid pattern displaying the alphanumeric sorted cards */}
       <div className="grid grid-cols-2 gap-4 w-full max-w-md">
         {finalRoster.map((profile, i) => {
           const banner = getBannerById(profile.banner_id);
@@ -83,7 +86,7 @@ export default function SelectStudent() {
               onClick={() => handleSelect(profile)}
               className="relative rounded-2xl overflow-hidden border-2 border-border hover:border-primary/50 transition-all text-left"
             >
-              {/* Original Banner Background */}
+              {/* Banner Background */}
               <div className={`relative h-20 bg-gradient-to-br ${banner.gradient} flex items-center justify-center`}>
                 <BannerPattern pattern={banner.pattern} opacity={0.15} />
                 <div className="absolute inset-0 bg-black/40" />
@@ -92,7 +95,7 @@ export default function SelectStudent() {
                 </div>
               </div>
               
-              {/* Original Metadata Text Block Info layout */}
+              {/* Metadata Text Block Info layout */}
               <div className="bg-card p-3">
                 <p className="font-black text-foreground text-sm truncate">{profile.display_name}</p>
                 <div className="mt-0.5">
