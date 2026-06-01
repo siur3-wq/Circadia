@@ -18,18 +18,21 @@ export default function SelectStudent() {
     queryFn: () => PlayerProfile.list(),
   });
 
-  // Keep student entries that match both filter requirements (Your exact original logic)
-  const unfilteredRoster = profiles.filter(p => {
-    const matchesSchool = p.school === currentSchool;
-    const matchesClass = p.class === currentClass || p.class_name === currentClass;
-    // Exclude database administrators from student selection listings
-    return matchesSchool && matchesClass && !p.is_admin && p.role !== "admin";
-  });
-
-  // ONLY NEW LINE: Sort the roster naturally using a clean copy so React doesn't lock up
-  const finalRoster = [...unfilteredRoster].sort((a, b) => 
-    (a.display_name || '').localeCompare(b.display_name || '', undefined, { numeric: true, sensitivity: 'base' })
-  );
+  // Keep student entries that match both filter requirements
+  const finalRoster = profiles
+    .filter(p => {
+      const matchesSchool = p.school === currentSchool;
+      const matchesClass = p.class === currentClass || p.class_name === currentClass;
+      // Exclude database administrators from student selection listings
+      return matchesSchool && matchesClass && !p.is_admin && p.role !== "admin";
+    })
+    // Added the new sorting mechanism right here
+    .sort((a, b) => 
+      (a.display_name || '').trim().localeCompare((b.display_name || '').trim(), undefined, { 
+        numeric: true, 
+        sensitivity: 'base' 
+      })
+    );
 
   const handleSelect = (profile) => {
     setSelectedProfileId(profile.id);
