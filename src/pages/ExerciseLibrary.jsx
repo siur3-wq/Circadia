@@ -4,7 +4,7 @@ import { CHALLENGES, BODY_PARTS, getLevelFromXP } from "../components/game/Chall
 import { getStreakMultiplier } from "../components/game/StreakDisplay";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Coins, ChevronDown, BookOpen, Check, Play, Pause, RotateCcw, Gift } from "lucide-react";
+import { Zap, Coins, ChevronDown, BookOpen, Check, Play, Pause, RotateCcw, Gift, Award } from "lucide-react";
 import { getSelectedProfileId } from "../lib/selectedProfile";
 import moment from "moment";
 
@@ -68,19 +68,16 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
     Easy: "bg-green-500/10 text-green-400 border-green-500/20"
   };
 
-  // Trigger burst effect when isCompleted flips to true
-  useEffect(() => {
-    if (isCompleted) {
-      setShowLootAnimation(true);
-    } else {
-      setShowLootAnimation(false);
-    }
-  }, [isCompleted]);
+  // Trigger burst reward pop effect whenever onComplete success is flagged
+  const handleStartTimer = () => {
+    setIsTimerRunning(!isTimerRunning);
+  };
 
   // RESET RULE 1: Reset timer if exercise swaps OR if category filter tab is clicked
   useEffect(() => {
     setTimeLeft(targetNum);
     setIsTimerRunning(false);
+    setShowLootAnimation(false);
   }, [challenge.id, targetNum, selectedPart]);
 
   // RESET RULE 2: Reset metrics instantly if browser tab focus changes or switches
@@ -107,12 +104,22 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
       }, 1000);
     } else if (timeLeft === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      if (!isCompleted && !isPending) {
+      
+      // EXERCISES ARE NOW REDO-ABLE: Removed the !isCompleted blocker so it runs infinite loops safely!
+      if (!isPending) {
+        setShowLootAnimation(false);
+        // Timeout ensures state flips cleanly to trigger animation exit/entry loops
+        setTimeout(() => {
+          setShowLootAnimation(true);
+        }, 50);
+
         onComplete({ ...challenge, xp: xpReward, coins: coinsReward });
+        // Auto-refresh timer to max duration so student can directly hit Start again
+        setTimeLeft(targetNum);
       }
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, isCompleted, isPending, onComplete, challenge, xpReward, coinsReward]);
+  }, [isTimerRunning, timeLeft, isPending, onComplete, challenge, xpReward, coinsReward, targetNum]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -138,7 +145,6 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
       className="relative bg-card border-2 border-border rounded-2xl overflow-visible transition-all"
-      style={{ opacity: isCompleted ? 0.75 : 1 }}
     >
       {/* FLOATING LOOT BURST ANIMATION LAYER */}
       <AnimatePresence>
@@ -205,7 +211,7 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
 
           {isCompleted && (
             <div className="mt-2.5 inline-flex items-center gap-1 text-xs font-black text-green-500 bg-green-500/10 px-2.5 py-1 rounded-xl border border-green-500/20">
-              <Check className="w-3.5 h-3.5 stroke-[4]" /> Quest Cleared! Stars Won! 🌟
+              <Check className="w-3.5 h-3.5 stroke-[4]" /> Cleared Today! Redoable 🌟
             </div>
           )}
         </div>
@@ -226,7 +232,7 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
             
             <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 px-3 py-1 rounded-full text-xs font-black text-accent-foreground">
               <Gift className="w-3.5 h-3.5 text-accent" />
-              This challenge grants {xpReward} XP & {coinsReward} Coins!
+              This challenge grants {xpReward} XP & {coinsReward} Coins on completion!
             </div>
 
             {/* ================== UNIFIED TIMER HUD DISPLAY ================== */}
@@ -251,13 +257,13 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
 
               <div className="flex gap-2 w-full max-w-xs justify-center">
                 <button
-                  disabled={isCompleted || timeLeft === 0}
-                  onClick={() => setIsTimerRunning(!isTimerRunning)}
+                  disabled={timeLeft === 0}
+                  onClick={handleStartTimer}
                   className={`flex-1 h-11 rounded-xl font-black text-xs text-white flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 disabled:opacity-50 ${
                     isTimerRunning ? "bg-amber-500 hover:bg-amber-600" : "bg-primary hover:opacity-90"
                   }`}
                 >
-                  {isTimerRunning ? <><Pause className="w-4 h-4 fill-white" /> Freeze!</> : <><Play className="w-4 h-4 fill-white" /> Start Timer!</>}
+                  {isTimerRunning ? <><Pause className="w-4 h-4 fill-white" /> Freeze!</> : <><Play className="w-4 h-4 fill-white" /> Start Workout!</>}
                 </button>
 
                 <button
@@ -270,12 +276,11 @@ function ExerciseCard({ challenge, index, isCompleted, onComplete, isPending, se
               </div>
             </>
 
-            {isPending && <p className="text-xs font-bold text-muted-foreground animate-pulse">Loading up your prize stash...</p>}
-            {isCompleted && (
-              <p className="text-xs font-black text-green-500 bg-green-500/10 px-3 py-1 rounded-lg border border-green-500/20 text-center">
-                🎉 Awesome job! Level up points and shiny gold coins have been added to your inventory!
-              </p>
-            )}
+            {isPending && <p className="text-xs font-bold text-muted-foreground animate-pulse">Saving your rewards to server inventory...</p>}
+            
+            <p className="text-[11px] font-bold text-center text-muted-foreground flex items-center gap-1">
+              <Award className="w-3.5 h-3.5 text-primary" /> This exercise can be played repeatedly to stack points!
+            </p>
           </div>
 
           {/* Tips guide text section */}
@@ -396,10 +401,7 @@ export default function ExerciseLibrary() {
           <p className="text-sm text-muted-foreground mt-1">Open an adventure card to complete your timed fitness challenges and get epic loot!</p>
         </div>
 
-        {/* UNIFIED FILTER CONTAINER:
-          Added Tailwind inline utilities to guarantee that the horizontal browser scrollbar 
-          is completely hidden across Chrome, Safari, Firefox, and Edge while preserving touch swipe maps.
-        */}
+        {/* UNIFIED FILTER CONTAINER */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             onClick={() => setSelectedPart("all")}

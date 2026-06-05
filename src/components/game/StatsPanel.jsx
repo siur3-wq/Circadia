@@ -1,17 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CHALLENGES, BODY_PARTS } from "./ChallengeData";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-
-// Estimate exercise minutes per challenge based on reps string
-function estimateMinutes(repsStr = "") {
-  const minMatch = repsStr.match(/(\d+)\s*min/i);
-  if (minMatch) return parseInt(minMatch[1]);
-  const secMatch = repsStr.match(/(\d+)\s*s/i);
-  if (secMatch) return Math.ceil(parseInt(secMatch[1]) / 60);
-  // count-based: ~30 seconds per challenge
-  return 0.5;
-}
+import { PlayerProfile } from "@/lib/db"; // Ensure this matches your project's DB helper location
 
 const PART_COLORS = {
   arms: "#f87171",
@@ -34,13 +25,64 @@ export default function StatsPanel({ profile, completions = [] }) {
   // Total coins earned
   const totalCoins = completions.reduce((s, c) => s + (c.coins_earned || 0), 0);
 
-  // Estimate total minutes
-  const totalMinutes = completions.reduce((sum, c) => {
+  // Calculate total minutes precisely from actual challenge duration seconds
+  const totalSeconds = completions.reduce((sum, c) => {
     const challengeDef = CHALLENGES.find(ch => ch.id === c.challenge_id);
-    return sum + estimateMinutes(challengeDef?.reps || "");
+    // Fallback to 60 seconds if the template lookup fails
+    return sum + (challengeDef ? challengeDef.duration : 60);
   }, 0);
+  
+  const totalMinutes = totalSeconds / 60;
+  
   const hours = Math.floor(totalMinutes / 60);
   const mins = Math.round(totalMinutes % 60);
+
+  // --- DIAGNOSTIC SYNC ENGINE ---
+  useEffect(() => {
+    console.log("🔍 Sync Check Executing:", {
+      profileData: profile,
+      calculatedMinutes: Math.round(totalMinutes),
+      currentDatabaseValue: profile?.total_time_exercised
+    });
+
+    if (!profile) {
+      console.log("⚠️ Sync skipped: 'profile' object is missing completely.");
+      return;
+    }
+
+    // Adapts to whichever primary key field your table setup utilizes
+    const profileIdentifier = profile.id || profile.user_id;
+
+    if (!profileIdentifier) {
+      console.log("⚠️ Sync skipped: Could not find an 'id' or 'user_id' inside the profile object.");
+      return;
+    }
+
+    if (profile.total_time_exercised === Math.round(totalMinutes)) {
+      console.log("✅ Sync skipped: Database value already matches the calculated total minutes.");
+      return;
+    }
+
+    const syncTime = async () => {
+      try {
+        console.log(`🚀 Sending update to Supabase for profile ID: ${profileIdentifier}...`);
+        const response = await PlayerProfile.update(profileIdentifier, {
+          total_time_exercised: Math.round(totalMinutes)
+        });
+        
+        if (response?.error) {
+          console.error("❌ Supabase API rejected the update:", response.error);
+        } else {
+          console.log("🎉 Database updated successfully! Synced to:", Math.round(totalMinutes));
+        }
+      } catch (error) {
+        console.error("❌ Network or code execution error during sync:", error);
+      }
+    };
+
+    syncTime();
+  }, [profile, totalMinutes]);
+  // ------------------------------
 
   // By body part breakdown
   const byPart = BODY_PARTS.map(bp => ({

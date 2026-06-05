@@ -1,15 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Check, X, LogOut, Shield, Download, Copy, GraduationCap } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, LogOut, Shield, Download, Copy, GraduationCap, RefreshCw, Megaphone, Radio } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import AvatarDisplay from "../components/game/AvatarDisplay";
+import AvatarDisplay from "@/components/game/AvatarDisplay";
 import { clearAdminMode, ADMIN_CONFIG } from "../lib/adminProfile";
 import { clearSelectedProfile } from "../lib/selectedProfile";
 import { supabase } from "@/lib/supabase"; 
+
+// ─── LOCAL GAME CONFIGURATION CONFIG MATRIX ──────────────────────────────────
+import { CHALLENGES } from "@/components/game/ChallengeData"; 
 
 const AVATAR_EMOJIS = ["😊","😎","🤩","🥳","😺","🦊","🐶","🐸","🦁","🐼","🐵","🦄","🐲","👻","🤖","👽"];
 
@@ -61,10 +64,8 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
   const [editingId, setEditingId] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
 
-  // FIXED: Handles numeric int8 ID incrementing & applies required default banner fields 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // 1. Query the highest current numeric ID to increment safely
       const { data: existingProfiles, error: maxError } = await supabase
         .from("player_profiles")
         .select("id")
@@ -73,13 +74,11 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
 
       if (maxError) throw maxError;
 
-      // Determine next clean sequential integer ID
       const nextId = existingProfiles && existingProfiles.length > 0 
         ? Number(existingProfiles[0].id) + 1 
         : 10;
 
-      // 2. Perform table insert using correct data types
-      const { data: res, error } = await supabase
+      const { data: res, error = null } = await supabase
         .from("player_profiles")
         .insert([{
           id: nextId, 
@@ -92,6 +91,7 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
           level: 1, 
           current_streak: 0, 
           longest_streak: 0,
+          total_time_exercised: 0,
         }])
         .select();
 
@@ -126,7 +126,7 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
   });
 
   const handleExportCSV = () => {
-    const fields = ["display_name","avatar_emoji","level","total_xp","coins","current_streak","longest_streak","last_challenge_date","banner_id","equipped_title_id","school_id","class_id","user_email"];
+    const fields = ["display_name","avatar_emoji","level","total_xp","coins","current_streak","longest_streak","total_time_exercised","last_challenge_date","banner_id","equipped_title_id","school_id","class_id","user_email"];
     const header = fields.join(",");
     const rows = (profiles || []).map(p => fields.map(f => `"${(p[f] ?? "").toString().replace(/"/g, '""')}"`).join(","));
     const csv = [header, ...rows].join("\n");
@@ -218,9 +218,15 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
                     <AvatarDisplay profile={profile} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-sm text-foreground truncate">{profile.display_name}</p>
-                      <p className="text-xs text-muted-foreground">⚡ {profile.total_xp || 0} XP · Lv.{profile.level || 1}</p>
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
+                        <span>⚡ {profile.total_xp || 0} XP</span>
+                        <span>·</span>
+                        <span>Lv.{profile.level || 1}</span>
+                        <span>·</span>
+                        <span className="text-primary font-bold">⏱️ {profile.total_time_exercised || 0}m</span>
+                      </div>
                       {profileSchool && (
-                        <p className="text-xs text-primary font-bold truncate">🏫 {profileSchool.name}{profileClass ? ` · ${profileClass.name}` : ""}</p>
+                        <p className="text-xs text-primary font-bold truncate mt-0.5">🏫 {profileSchool.name}{profileClass ? ` · ${profileClass.name}` : ""}</p>
                       )}
                     </div>
                     <div className="flex gap-1.5">
@@ -512,10 +518,183 @@ function SchoolsTab() {
   );
 }
 
+// ─── Maintenance Tab Component ────────────────────────────────────────────────
+function MaintenanceTab({ profiles }) {
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [status, setStatus] = useState("");
+
+  // In-memory live announcement inputs
+  const [broadcastText, setBroadcastText] = useState("");
+  const [isBroadcastActive, setIsBroadcastActive] = useState(false);
+
+  // Sync state parameters from local storage memory on initial card initialization
+  useEffect(() => {
+    const saved = localStorage.getItem("circadia_admin_announcement");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setBroadcastText(parsed.message || "");
+      setIsBroadcastActive(parsed.is_active || false);
+    }
+  }, []);
+
+  const handlePublishAnnouncement = () => {
+    const announcementPayload = { message: broadcastText.trim(), is_active: true };
+    localStorage.setItem("circadia_admin_announcement", JSON.stringify(announcementPayload));
+    setIsBroadcastActive(true);
+    toast.success("Live gateway announcement updated! 📻");
+  };
+
+  const handleDeactivateAnnouncement = () => {
+    const announcementPayload = { message: broadcastText, is_active: false };
+    localStorage.setItem("circadia_admin_announcement", JSON.stringify(announcementPayload));
+    setIsBroadcastActive(false);
+    toast.success("Live broadcast deactivated.");
+  };
+
+  const handleRecalculateTimes = async () => {
+    setSyncing(true);
+    setStatus("Reading completions registry from challenge_completions table...");
+    try {
+      const { data: completions, error: compError } = await supabase
+        .from("challenge_completions")
+        .select("user_email, challenge_id"); 
+
+      if (compError) throw compError;
+
+      setStatus(`Processing data streams for ${(profiles || []).length} students...`);
+
+      const emailSecondsMap = {};
+      completions.forEach((c) => {
+        if (!c.user_email) return; 
+        
+        const matchingChallenge = CHALLENGES.find((ch) => ch.id === c.challenge_id);
+        const durationSeconds = matchingChallenge ? matchingChallenge.duration : 60; 
+        
+        emailSecondsMap[c.user_email] = (emailSecondsMap[c.user_email] || 0) + durationSeconds;
+      });
+
+      let updatedRecordsCount = 0;
+      for (const profile of (profiles || [])) {
+        if (!profile.user_email) continue;
+
+        const calculatedSeconds = emailSecondsMap[profile.user_email] || 0;
+        const correctMinutes = Math.round(calculatedSeconds / 60);
+
+        if (profile.total_time_exercised !== correctMinutes) {
+          const { error: updateError } = await supabase
+            .from("player_profiles")
+            .update({ total_time_exercised: correctMinutes })
+            .eq("id", profile.id);
+
+          if (updateError) {
+            console.error(`Failed on profile #${profile.id}:`, updateError.message);
+          } else {
+            updatedRecordsCount++;
+          }
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["allProfiles"] });
+      setStatus(`🎉 Completed! Audited ledger and synchronized ${updatedRecordsCount} profiles.`);
+      toast.success("All student workout metrics synced! ⏱️");
+    } catch (err) {
+      console.error(err);
+      setStatus(`❌ Error executing sync matrix: ${err.message}`);
+      toast.error("Batch sync engine crashed.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* IN-MEMORY LOCAL LIVE BROADCAST PANEL */}
+      <Card className="border border-border rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-base font-black flex items-center gap-2">
+            📢 Live Gateway Announcement
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Broadcast text directions instantly into the students' roster gate screen. Completely calculated inside native browser memory layout logic.
+          </p>
+          <Input 
+            value={broadcastText}
+            onChange={(e) => setBroadcastText(e.target.value)}
+            placeholder="Type live banner notification info here..."
+            className="rounded-xl h-11 font-medium"
+          />
+          <div className="flex gap-2">
+            <Button 
+              size="sm"
+              onClick={handlePublishAnnouncement}
+              disabled={!broadcastText.trim()}
+              className="flex-1 rounded-xl font-bold bg-primary text-primary-foreground gap-1.5"
+            >
+              <Radio className="w-3.5 h-3.5" /> Broadcast Live Text
+            </Button>
+            {isBroadcastActive && (
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={handleDeactivateAnnouncement}
+                className="rounded-xl font-bold text-destructive hover:bg-destructive/10"
+              >
+                Turn Off
+              </Button>
+            )}
+          </div>
+          {isBroadcastActive && (
+            <p className="text-[10px] text-green-500 font-bold flex items-center gap-1 justify-center animate-pulse mt-1">
+              ● Announcement Stream Is Online & Active
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* RECALCULATE DATABASE TIMES UTILITY */}
+      <Card className="border border-border rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-base font-black flex items-center gap-2">
+            ⚙️ Automated Core Utilities
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <p className="font-bold text-sm text-foreground">Global Exercise Time Synchronization</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Scans logged metrics inside the <code>challenge_completions</code> table. 
+              Cross-references durations from your template files and balances client tracking.
+            </p>
+          </div>
+
+          <Button 
+            onClick={handleRecalculateTimes} 
+            disabled={syncing}
+            className="w-full h-11 rounded-xl font-bold gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 transition-opacity text-white"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Processing Sync Matrix..." : "Recalculate & Sync All Exercise Times"}
+          </Button>
+
+          {status && (
+            <div className="text-xs font-bold font-mono p-3 rounded-xl bg-muted border border-border text-foreground text-center">
+              {status}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Dashboard Component ────────────────────────────────────────────────
 const TABS = [
   { id: "profiles", label: "👤 Profiles" },
   { id: "schools", label: "🏫 Schools" },
+  { id: "maintenance", label: "⚙️ Maintenance" },
 ];
 
 export default function AdminDashboard() {
@@ -586,6 +765,7 @@ export default function AdminDashboard() {
 
         {activeTab === "profiles" && <ProfilesTab profiles={profiles} isLoading={isLoading} schools={schools} allClasses={allClasses} />}
         {activeTab === "schools" && <SchoolsTab />}
+        {activeTab === "maintenance" && <MaintenanceTab profiles={profiles} />}
       </div>
     </div>
   );

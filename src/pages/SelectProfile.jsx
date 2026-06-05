@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlayerProfile } from "@/lib/db";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { setSelectedProfileId } from "@/lib/selectedProfile";
 import { setAdminMode, ADMIN_CONFIG } from "@/lib/adminProfile";
-import { Zap, Shield, X, School, ClipboardList, ArrowLeft } from "lucide-react";
+import { Zap, Shield, X, School, ClipboardList, ArrowLeft, Megaphone } from "lucide-react";
 import AvatarDisplay from "../components/game/AvatarDisplay";
 import { getBannerById } from "../components/game/BannerUtils";
 import BannerPattern from "../components/game/BannerPattern";
@@ -21,6 +21,30 @@ export default function SelectProfile() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
+
+  // Dynamic code-driven client-side live text storage state hooks
+  const [liveAnnouncement, setLiveAnnouncement] = useState(null);
+
+  useEffect(() => {
+    const parseLiveAnnouncement = () => {
+      const dataStore = localStorage.getItem("circadia_admin_announcement");
+      if (dataStore) {
+        const payload = JSON.parse(dataStore);
+        if (payload.is_active && payload.message) {
+          setLiveAnnouncement(payload.message);
+          return;
+        }
+      }
+      setLiveAnnouncement(null);
+    };
+
+    // Run layout audit check instantly on component construction mounts
+    parseLiveAnnouncement();
+
+    // Setup memory interval ticker loop to catch multi-tab dashboard broadcasts instantly
+    const threadInterval = setInterval(parseLiveAnnouncement, 2000);
+    return () => clearInterval(threadInterval);
+  }, []);
 
   // 1. Fetch all student profiles from player_profiles table
   const { data: profiles, isLoading: profilesLoading } = useQuery({
@@ -109,6 +133,24 @@ export default function SelectProfile() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-start px-4 pt-10 pb-10">
+      
+      {/* NATIVE IN-MEMORY REACTION BUBBLE COMPONENT */}
+      {liveAnnouncement && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="w-full max-w-md mb-6 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-500/20 flex items-center gap-3.5 shadow-sm"
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow-md">
+            <Megaphone className="w-4 h-4 text-white animate-bounce" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Live Announcement</p>
+            <p className="text-sm font-bold text-foreground leading-snug truncate">{liveAnnouncement}</p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Header Layout */}
       <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-center mb-6">
         <div className="flex items-center justify-center gap-2 mb-2">
