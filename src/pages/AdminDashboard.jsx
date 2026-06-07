@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Check, X, LogOut, Shield, Download, Copy, GraduationCap, RefreshCw, Megaphone, Radio } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, LogOut, Shield, Download, Copy, GraduationCap, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AvatarDisplay from "@/components/game/AvatarDisplay";
 import { clearAdminMode, ADMIN_CONFIG } from "../lib/adminProfile";
@@ -78,7 +78,7 @@ function ProfilesTab({ profiles, isLoading, schools, allClasses }) {
         ? Number(existingProfiles[0].id) + 1 
         : 10;
 
-      const { data: res, error = null } = await supabase
+      const { data: res, error } = await supabase
         .from("player_profiles")
         .insert([{
           id: nextId, 
@@ -524,34 +524,6 @@ function MaintenanceTab({ profiles }) {
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState("");
 
-  // In-memory live announcement inputs
-  const [broadcastText, setBroadcastText] = useState("");
-  const [isBroadcastActive, setIsBroadcastActive] = useState(false);
-
-  // Sync state parameters from local storage memory on initial card initialization
-  useEffect(() => {
-    const saved = localStorage.getItem("circadia_admin_announcement");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setBroadcastText(parsed.message || "");
-      setIsBroadcastActive(parsed.is_active || false);
-    }
-  }, []);
-
-  const handlePublishAnnouncement = () => {
-    const announcementPayload = { message: broadcastText.trim(), is_active: true };
-    localStorage.setItem("circadia_admin_announcement", JSON.stringify(announcementPayload));
-    setIsBroadcastActive(true);
-    toast.success("Live gateway announcement updated! 📻");
-  };
-
-  const handleDeactivateAnnouncement = () => {
-    const announcementPayload = { message: broadcastText, is_active: false };
-    localStorage.setItem("circadia_admin_announcement", JSON.stringify(announcementPayload));
-    setIsBroadcastActive(false);
-    toast.success("Live broadcast deactivated.");
-  };
-
   const handleRecalculateTimes = async () => {
     setSyncing(true);
     setStatus("Reading completions registry from challenge_completions table...");
@@ -608,85 +580,37 @@ function MaintenanceTab({ profiles }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* IN-MEMORY LOCAL LIVE BROADCAST PANEL */}
-      <Card className="border border-border rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-base font-black flex items-center gap-2">
-            📢 Live Gateway Announcement
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+    <Card className="border border-border rounded-2xl">
+      <CardHeader>
+        <CardTitle className="text-base font-black flex items-center gap-2">
+          ⚙️ Automated Core Utilities
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1">
+          <p className="font-bold text-sm text-foreground">Global Exercise Time Synchronization</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Broadcast text directions instantly into the students' roster gate screen. Completely calculated inside native browser memory layout logic.
+            Scans logged metrics inside the <code>challenge_completions</code> table. 
+            Cross-references durations from your template files and balances client tracking.
           </p>
-          <Input 
-            value={broadcastText}
-            onChange={(e) => setBroadcastText(e.target.value)}
-            placeholder="Type live banner notification info here..."
-            className="rounded-xl h-11 font-medium"
-          />
-          <div className="flex gap-2">
-            <Button 
-              size="sm"
-              onClick={handlePublishAnnouncement}
-              disabled={!broadcastText.trim()}
-              className="flex-1 rounded-xl font-bold bg-primary text-primary-foreground gap-1.5"
-            >
-              <Radio className="w-3.5 h-3.5" /> Broadcast Live Text
-            </Button>
-            {isBroadcastActive && (
-              <Button 
-                size="sm"
-                variant="outline"
-                onClick={handleDeactivateAnnouncement}
-                className="rounded-xl font-bold text-destructive hover:bg-destructive/10"
-              >
-                Turn Off
-              </Button>
-            )}
+        </div>
+
+        <Button 
+          onClick={handleRecalculateTimes} 
+          disabled={syncing}
+          className="w-full h-11 rounded-xl font-bold gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 transition-opacity text-white"
+        >
+          <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Processing Sync Matrix..." : "Recalculate & Sync All Exercise Times"}
+        </Button>
+
+        {status && (
+          <div className="text-xs font-bold font-mono p-3 rounded-xl bg-muted border border-border text-foreground text-center">
+            {status}
           </div>
-          {isBroadcastActive && (
-            <p className="text-[10px] text-green-500 font-bold flex items-center gap-1 justify-center animate-pulse mt-1">
-              ● Announcement Stream Is Online & Active
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* RECALCULATE DATABASE TIMES UTILITY */}
-      <Card className="border border-border rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-base font-black flex items-center gap-2">
-            ⚙️ Automated Core Utilities
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <p className="font-bold text-sm text-foreground">Global Exercise Time Synchronization</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Scans logged metrics inside the <code>challenge_completions</code> table. 
-              Cross-references durations from your template files and balances client tracking.
-            </p>
-          </div>
-
-          <Button 
-            onClick={handleRecalculateTimes} 
-            disabled={syncing}
-            className="w-full h-11 rounded-xl font-bold gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 transition-opacity text-white"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Processing Sync Matrix..." : "Recalculate & Sync All Exercise Times"}
-          </Button>
-
-          {status && (
-            <div className="text-xs font-bold font-mono p-3 rounded-xl bg-muted border border-border text-foreground text-center">
-              {status}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -695,10 +619,13 @@ const TABS = [
   { id: "profiles", label: "👤 Profiles" },
   { id: "schools", label: "🏫 Schools" },
   { id: "maintenance", label: "⚙️ Maintenance" },
+  { id: "announcements", label: "📢 Broadcast" },
 ];
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("profiles");
+  const [announcementText, setAnnouncementText] = useState("");
+  const queryClient = useQueryClient();
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["allProfiles"],
@@ -725,6 +652,55 @@ export default function AdminDashboard() {
       if (error) return [];
       return data || [];
     },
+  });
+
+  // Fetch the currently active cloud announcement
+  const { data: currentAnnouncement } = useQuery({
+    queryKey: ["latestAnnouncement"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (error) return null;
+      return data?.[0] || null;
+    }
+  });
+
+  // Post announcement mutation
+  const sendAnnouncementMutation = useMutation({
+    mutationFn: async (text) => {
+      if (!text.trim()) return;
+      // Clear any previous entries first to keep only one announcement active
+      await supabase.from("announcements").delete().neq("id", 0);
+      // Insert new announcement text row
+      const { error } = await supabase.from("announcements").insert([{ message: text }]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["latestAnnouncement"] });
+      toast.success("Broadcast alert sent to all student devices!");
+      setAnnouncementText("");
+    },
+    onError: (err) => {
+      toast.error(`Failed to broadcast: ${err.message}`);
+    }
+  });
+
+  // Delete announcement mutation
+  const clearAnnouncementMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("announcements").delete().neq("id", 0);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["latestAnnouncement"] });
+      toast.success("Broadcast cleared from all devices.");
+    },
+    onError: (err) => {
+      toast.error(`Failed to clear alert: ${err.message}`);
+    }
   });
 
   const handleExit = () => {
@@ -766,6 +742,50 @@ export default function AdminDashboard() {
         {activeTab === "profiles" && <ProfilesTab profiles={profiles} isLoading={isLoading} schools={schools} allClasses={allClasses} />}
         {activeTab === "schools" && <SchoolsTab />}
         {activeTab === "maintenance" && <MaintenanceTab profiles={profiles} />}
+        
+        {activeTab === "announcements" && (
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+            <div>
+              <h3 className="font-black text-foreground text-base">Live Global Broadcast</h3>
+              <p className="text-xs text-muted-foreground font-medium">
+                Type a message below to flash an alert banner onto every active student profile screen instantly.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Input
+                placeholder="Type alert info (e.g. Remember to log your workouts before 6 PM today! 🏋️)"
+                value={announcementText}
+                onChange={(e) => setAnnouncementText(e.target.value)}
+                className="rounded-xl font-bold"
+              />
+              <Button 
+                onClick={() => sendAnnouncementMutation.mutate(announcementText)}
+                disabled={!announcementText.trim() || sendAnnouncementMutation.isPending}
+                className="w-full rounded-xl font-black gap-2"
+              >
+                📢 Launch Live Alert
+              </Button>
+            </div>
+
+            {currentAnnouncement && (
+              <div className="pt-4 border-t border-border space-y-2">
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-wider">Active Stream Message:</p>
+                <div className="bg-primary/10 border border-primary/20 text-primary font-bold text-sm p-3 rounded-xl flex items-center justify-between gap-3 animate-pulse">
+                  <p className="flex-1 font-bold">{currentAnnouncement.message}</p>
+                  <button 
+                    onClick={() => clearAnnouncementMutation.mutate()} 
+                    disabled={clearAnnouncementMutation.isPending}
+                    className="text-destructive hover:text-destructive/80 p-1 bg-background rounded-lg border shadow-sm shrink-0"
+                    title="Clear announcement"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

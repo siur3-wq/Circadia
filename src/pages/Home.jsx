@@ -19,6 +19,7 @@ import PlayerTitle from "../components/game/PlayerTitle";
 import { getSelectedProfileId } from "../lib/selectedProfile";
 import { Timer } from "lucide-react";
 import moment from "moment";
+import { supabase } from "@/lib/supabase"; 
 
 export default function Home() {
   const queryClient = useQueryClient();
@@ -43,6 +44,21 @@ export default function Home() {
       return results[0] || null;
     },
     enabled: !!profileId,
+  });
+
+  // Fetch the latest global broadcast from Supabase
+  const { data: globalAnnouncement } = useQuery({
+    queryKey: ["latestAnnouncement"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (error) return null;
+      return data?.[0] || null;
+    },
+    refetchInterval: 10000, // Syncs student devices automatically every 10 seconds
   });
 
   // Safe fallback deterministic string for generating daily seeds
@@ -288,6 +304,21 @@ export default function Home() {
             </div>
           );
         })()}
+
+        {/* Global Cloud Broadcast Alert Banner */}
+        {globalAnnouncement && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-amber-500/15 to-primary/15 border-2 border-amber-500/30 rounded-2xl p-3.5 flex items-start gap-3 text-sm font-black shadow-sm text-foreground"
+          >
+            <span className="text-lg shrink-0 animate-bounce">📢</span>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] uppercase font-black tracking-widest text-amber-500 block mb-0.5">Announcement</span>
+              <p className="text-foreground leading-relaxed font-bold">{globalAnnouncement.message}</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Dashboard Grid Stats Counters with Floating Text overlays */}
         <div className="grid grid-cols-3 gap-3">

@@ -20,7 +20,7 @@ export default function StatsPanel({ profile, completions = [] }) {
   const totalActivities = completions.length;
 
   // Total XP earned
-  const totalXP = completions.reduce((s, c) => s + (c.xp_earned || 0), 0);
+const totalXP = Number(profile?.total_xp || 0);
 
   // Total coins earned
   const totalCoins = completions.reduce((s, c) => s + (c.coins_earned || 0), 0);
